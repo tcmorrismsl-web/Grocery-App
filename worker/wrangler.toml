@@ -1,0 +1,16 @@
+# Only needed if you deploy from a computer with the Wrangler CLI (npx wrangler deploy).
+# Deploying by pasting worker.js into the Cloudflare dashboard doesn't use this file.
+name = "shelf-tag-prices"
+main = "worker.js"
+compatibility_date = "2025-09-01"
+
+[vars]
+# Set this to your GitHub Pages address once you have it, this is already set for your GitHub Pages site
+ALLOWED_ORIGIN = "https://tcmorrismsl-web.github.io"
+
+# Secrets are set separately so they never land in GitHub:
+#   npx wrangler secret put APP_KEY
+#   npx wrangler secret put KROGER_CLIENT_ID
+#   npx wrangler secret put KROGER_CLIENT_SECRET
+#   npx wrangler secret put WALMART_CONSUMER_ID     (optional)
+#   npx wrangler secret put WALMART_PRIVATE_KEY     (optional)

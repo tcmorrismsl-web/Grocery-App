@@ -1,0 +1,16 @@
+{
+  "name": "Shelf Tag",
+  "short_name": "Shelf Tag",
+  "description": "Grocery list, pantry tracker, store price comparison and health scores.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F2F4EF",
+  "theme_color": "#1D5A45",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
