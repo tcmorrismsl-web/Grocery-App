@@ -1,0 +1,56 @@
+name: Update Harris Teeter prices
+
+# Builds kroger.json (the daily Harris Teeter price list) and publishes it to the
+# `data` branch, which the app reads. Runs every morning, whenever prices/ changes,
+# and on demand from the Actions tab (Run workflow).
+on:
+  schedule:
+    - cron: "17 10 * * *"   # 6:17 am Eastern (5:17 am in winter); GitHub can start a few minutes late
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "prices/**"
+      - ".github/workflows/prices.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prices
+  cancel-in-progress: false
+
+jobs:
+  prices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Previous price list
+        run: |
+          mkdir -p prev
+          if git fetch --depth=1 origin data 2>/dev/null; then
+            git show origin/data:kroger.json > prev/kroger.json 2>/dev/null || rm -f prev/kroger.json
+          fi
+
+      - name: Fetch prices
+        env:
+          KROGER_CLIENT_ID: ${{ secrets.KROGER_CLIENT_ID }}
+          KROGER_CLIENT_SECRET: ${{ secrets.KROGER_CLIENT_SECRET }}
+        run: python3 prices/fetch_kroger.py --prev prev/kroger.json --out out
+
+      - name: Publish to the data branch
+        if: always()
+        run: |
+          if [ ! -f out/kroger.json ]; then echo "nothing to publish"; exit 0; fi
+          cd out
+          git init -q -b data
+          git config user.name "grocery-app-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "prices $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" data
+          echo "published"

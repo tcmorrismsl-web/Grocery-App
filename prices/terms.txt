@@ -1,0 +1,192 @@
+# What the daily price update searches Harris Teeter for. One term per line.
+# Each term pulls up to 100 matching products with today's price at your store.
+# If an item in the app says "not in the daily price list", add a word for it here.
+# Lines starting with # are ignored.
+
+# Dairy and eggs
+milk
+2% milk
+whole milk
+skim milk
+lactose free milk
+oat milk
+almond milk
+eggs
+butter
+cream cheese
+sour cream
+heavy cream
+half and half
+coffee creamer
+greek yogurt
+yogurt
+cottage cheese
+shredded cheese
+cheddar cheese
+mozzarella
+sliced cheese
+parmesan
+string cheese
+
+# Produce
+bananas
+apples
+strawberries
+blueberries
+grapes
+oranges
+clementines
+lemons
+limes
+avocado
+tomatoes
+potatoes
+sweet potatoes
+onions
+garlic
+carrots
+celery
+broccoli
+cauliflower
+spinach
+salad mix
+romaine
+lettuce
+cucumber
+bell pepper
+zucchini
+mushrooms
+green beans
+corn
+watermelon
+pineapple
+
+# Meat and seafood
+chicken breast
+chicken thighs
+ground beef
+ground turkey
+steak
+pork chops
+bacon
+sausage
+hot dogs
+deli turkey
+deli ham
+salmon
+shrimp
+tilapia
+rotisserie chicken
+
+# Bakery and breakfast
+bread
+whole wheat bread
+bagels
+english muffins
+tortillas
+hamburger buns
+hot dog buns
+cereal
+oatmeal
+rolled oats
+granola
+pancake mix
+syrup
+waffles
+
+# Pantry
+pasta
+spaghetti
+macaroni and cheese
+rice
+brown rice
+pasta sauce
+marinara
+canned tomatoes
+tomato paste
+black beans
+chickpeas
+canned tuna
+chicken broth
+soup
+peanut butter
+jelly
+honey
+flour
+sugar
+brown sugar
+olive oil
+vegetable oil
+cooking spray
+salt
+black pepper
+ketchup
+mustard
+mayonnaise
+ranch dressing
+salad dressing
+bbq sauce
+soy sauce
+salsa
+hot sauce
+vinegar
+
+# Snacks
+chips
+potato chips
+tortilla chips
+pretzels
+crackers
+goldfish crackers
+popcorn
+cookies
+granola bars
+fruit snacks
+applesauce
+raisins
+nuts
+almonds
+trail mix
+
+# Frozen
+frozen vegetables
+frozen broccoli
+frozen fruit
+frozen pizza
+chicken nuggets
+ice cream
+frozen meals
+fish sticks
+
+# Drinks
+coffee
+ground coffee
+k cups
+tea
+orange juice
+apple juice
+sparkling water
+bottled water
+soda
+sports drink
+
+# Kids
+baby food
+toddler snacks
+puffs
+whole milk yogurt
+juice boxes
+diapers
+baby wipes
+
+# Household
+paper towels
+toilet paper
+trash bags
+dish soap
+dishwasher detergent
+laundry detergent
+aluminum foil
+plastic wrap
+zip bags
+hand soap

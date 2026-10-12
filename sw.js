@@ -1,6 +1,6 @@
 // Shelf Tag service worker: keeps the app working offline once it's been opened.
 // Bump CACHE when you change index.html so phones pick up the new version.
-const CACHE = 'shelftag-v2';
+const CACHE = 'shelftag-v3';
 const SHELL = [
   './',
   './index.html',

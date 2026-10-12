@@ -726,11 +726,14 @@ function viewSettings(){
       <input type="text" id="st-name-${s.id}" value="${esc(s.name)}" data-store="${s.id}" data-field="name" aria-label="Store name">
       <input type="text" id="st-card-${s.id}" value="${esc(s.card || '')}" data-store="${s.id}" data-field="card" placeholder="Rewards card" aria-label="Rewards card for ${esc(s.name)}">
       <button class="mini" data-action="store-del" data-id="${s.id}" aria-label="Remove ${esc(s.name)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-      <div class="live">${s.source ? `<span><span class="live-dot"></span>${esc(storeSourceText(s))}</span>` : `<span>Prices you log</span>`}${liveOn() ? `<button class="btn-link" style="padding:4px 0" data-action="store-connect" data-id="${s.id}">${s.source ? 'Change' : 'Connect live prices'}</button>` : ''}</div>
+      <div class="live">${s.source ? `<span><span class="live-dot"></span>${esc(storeSourceText(s))}</span>` : `<span>Prices you log</span>`}${(liveOn() || /harris\s*teeter/i.test(s.name) || s.source) ? `<button class="btn-link" style="padding:4px 0" data-action="store-connect" data-id="${s.id}">${s.source ? 'Change' : 'Connect live prices'}</button>` : ''}</div>
     </li>`).join('') : `<li><p class="empty">No stores yet.</p></li>`) + '</ul>';
   h += `<div class="row-actions"><button class="btn" data-action="store-add">Add a store</button></div>`;
   const L = S.settings.live;
-  h += `<h2 class="sec">Live prices</h2><div class="prose"><p>Your price server pulls current prices from Harris Teeter (through Kroger's API) and, once approved, Walmart. Setup steps are in the README.</p></div>
+  h += `<h2 class="sec">Daily Harris Teeter prices</h2><div id="feedBox">${feedStatusHTML()}</div>
+    <div class="row-actions"><button class="btn" data-action="feed-check">Check for new prices</button><button class="btn" data-action="feed-automatch">Match my items</button></div>
+    <p class="hint">Change your store or what gets searched on GitHub: <a href="${GH}/edit/main/prices/config.json" target="_blank" rel="noopener" style="color:var(--accent);font-weight:600">store</a> · <a href="${GH}/edit/main/prices/terms.txt" target="_blank" rel="noopener" style="color:var(--accent);font-weight:600">search words</a></p>`;
+  h += `<h2 class="sec">Price server (optional)</h2><div class="prose"><p>Only needed for Walmart prices or instant searches. Setup steps are in the README.</p></div>
     <div class="form">
       <label class="fld"><span>Price server address</span><input type="url" id="liveUrl" value="${esc(L.url)}" placeholder="https://shelf-tag-prices.yourname.workers.dev" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
       <label class="fld"><span>App key</span><input type="password" id="liveKey" value="${esc(L.key)}" placeholder="The APP_KEY you set on the server" autocomplete="off"></label>
@@ -743,6 +746,16 @@ function viewSettings(){
     <p>Health scores come from Open Food Facts (Nutri-Score) when you look up a barcode. If your store's app shows its own 1–100 score, you can type that in instead.</p></div>`;
   h += `<h2 class="sec">Data</h2><div class="row-actions">${S.sample ? `<button class="btn" data-action="clear-sample">Remove sample data</button>` : ''}<button class="btn btn-danger" data-action="erase">Erase everything</button></div>`;
   return h;
+}
+
+function feedStatusHTML(){
+  const d = feed.data, err = feed.error;
+  if (!d && !err) return `<p class="hint" style="margin:0">Loading the price list…</p>`;
+  if (!d) return `<p class="hint status-bad" style="margin:0">${esc(err)}</p>`;
+  const when = d.updated ? new Date(d.updated).toLocaleString(undefined, {weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}) : '';
+  const linked = linkedPairs().filter(x => x.store.source === 'feed').length;
+  return `<ul class="list"><li class="live-row"><span><b style="font-weight:600">${d.store ? esc(d.store.name) : 'No store yet'}</b><small>${d.store && d.store.address ? esc(d.store.address) + ' · ' : ''}${d.rows.length.toLocaleString()} products${when ? ' · updated ' + esc(when) : ''}</small></span><span class="pill">${linked} matched</span></li></ul>
+    ${d.error ? `<p class="hint status-bad">${esc(d.error)}</p>` : ''}`;
 }
 
 /* ---------- sheets ---------- */
@@ -806,7 +819,7 @@ function itemSheet(id, preset){
     const links = it.links || {};
     h += `<h2 class="sec">Live prices</h2><ul class="list">` + liveStores().map(s => {
       const l = links[s.id];
-      return `<li class="live-row"><span><b style="font-weight:600">${esc(s.name)}</b><small>${l ? esc([l.name, l.size].filter(Boolean).join(' · ')) : 'Not matched yet'}</small></span>
+      return `<li class="live-row"><span><b style="font-weight:600">${esc(s.name)}</b><small>${l ? esc([l.name, l.size, l.auto ? 'matched automatically' : ''].filter(Boolean).join(' · ')) : 'Not matched yet'}</small></span>
         <span style="display:flex;gap:6px">${l ? `<button class="btn btn-sm" data-action="live-item-refresh" data-id="${it.id}" data-store="${s.id}">Refresh</button><button class="btn btn-sm" data-action="live-find" data-id="${it.id}" data-store="${s.id}">Change</button>` : `<button class="btn btn-sm btn-primary" data-action="live-find" data-id="${it.id}" data-store="${s.id}">Find match</button>`}</span></li>`;
     }).join('') + `</ul><p id="liveItemStatus" class="hint" role="status"></p><div id="liveItemResults"></div>`;
   }
@@ -1024,8 +1037,88 @@ function closeScanner(){
 /* ---------- live prices (your price server: Kroger / Walmart) ---------- */
 const CLOSE_BTN = '<button class="icon-btn" data-action="close-sheet" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
 function liveOn(){ return !!(S.settings.live && S.settings.live.url); }
-function liveStores(){ return liveOn() ? S.stores.filter(s => (s.source === 'kroger' && s.locationId) || s.source === 'walmart') : []; }
-function storeSourceText(s){ return s.source === 'kroger' ? 'Live · ' + (s.locationName || 'Kroger store') : s.source === 'walmart' ? 'Live · Walmart online price' : ''; }
+function liveStores(){
+  return S.stores.filter(s => s.source === 'feed' || (liveOn() && ((s.source === 'kroger' && s.locationId) || s.source === 'walmart')));
+}
+function storeSourceText(s){
+  if (s.source === 'feed') return 'Daily · ' + ((feed.data && feed.data.store && feed.data.store.name) || 'Harris Teeter price list');
+  return s.source === 'kroger' ? 'Live · ' + (s.locationName || 'Kroger store') : s.source === 'walmart' ? 'Live · Walmart online price' : '';
+}
+
+/* Daily Harris Teeter price list, built by the repo's GitHub Action (prices.yml)
+   and published as kroger.json on the repo's `data` branch. */
+const REPO = (() => {
+  const m = location.hostname.match(/^([\w-]+)\.github\.io$/i), seg = location.pathname.split('/').filter(Boolean)[0];
+  return m && seg ? {owner:m[1], name:seg} : {owner:'tcmorrismsl-web', name:'Grocery-App'};
+})();
+const GH = `https://github.com/${REPO.owner}/${REPO.name}`;
+function feedUrl(){ return (S.settings.feedUrl || `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/data/kroger.json`); }
+const feed = {data:null, at:0, error:'', byId:null, loading:null};
+function getFeed(force){
+  if (!force && feed.data && Date.now() - feed.at < 30 * 60e3) return Promise.resolve(feed.data);
+  if (feed.loading) return feed.loading;
+  feed.loading = (async () => {
+    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 20000);
+    try {
+      const r = await fetch(feedUrl() + '?t=' + Math.floor(Date.now() / 300e3), {signal:ctl.signal, cache:'no-store'});
+      if (r.status === 404) throw new Error('The daily price list hasn’t been published yet. It appears after the GitHub Action runs once.');
+      if (!r.ok) throw new Error('Couldn’t load the daily price list (' + r.status + ').');
+      const j = await r.json();
+      const F = j.fields || ['id','name','brand','size','price','promo','seen'], col = k => F.indexOf(k);
+      const rows = (j.products || []).map(p => ({id:String(p[col('id')]), name:p[col('name')] || '', brand:p[col('brand')] || '', size:p[col('size')] || '', price:p[col('price')], promo:p[col('promo')], seen:p[col('seen')] || ''}));
+      rows.forEach(p => { p.text = (p.name + ' ' + p.brand + ' ' + p.size).toLowerCase(); });
+      feed.data = Object.assign({}, j, {rows}); feed.byId = new Map(rows.map(p => [p.id, p]));
+      feed.at = Date.now(); feed.error = j.error || '';
+      return feed.data;
+    } catch (e) {
+      feed.error = e.name === 'AbortError' ? 'The daily price list took too long to load.' : (e.message || 'Couldn’t load the daily price list.');
+      if (/Failed to fetch|NetworkError|Load failed/i.test(feed.error)) feed.error = 'Couldn’t reach the daily price list. Check your connection.';
+      throw new Error(feed.error);
+    } finally { clearTimeout(tm); feed.loading = null; }
+  })();
+  return feed.loading;
+}
+const STOP = new Set(['the','and','of','with','store','brand','a','an','for','in','fresh','pack']);
+function tokens(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9%.\s]/g, ' ').split(/\s+/).filter(t => t && !STOP.has(t)); }
+function feedSearch(term, brand){
+  if (!feed.data) return [];
+  const toks = tokens(term); if (!toks.length) return [];
+  const b = String(brand || '').toLowerCase().trim();
+  const need = Math.max(1, Math.ceil(toks.length * 0.6));
+  const hit = (text, t) => text.includes(t) || (t.length > 3 && t.endsWith('s') && text.includes(t.slice(0, -1)));
+  const out = [];
+  for (const p of feed.data.rows) {
+    let n = 0; for (const t of toks) if (hit(p.text, t)) n++;
+    if (n < need) continue;
+    let score = n / toks.length;
+    if (b && !/^store brand$/.test(b) && p.text.includes(b)) score += 0.5;
+    if (p.promo != null) score += 0.01;
+    out.push({p, score, len:p.name.length});
+  }
+  out.sort((x, y) => y.score - x.score || x.len - y.len);
+  return out.slice(0, 12).map(x => ({id:x.p.id, name:x.p.name, brand:x.p.brand, size:x.p.size, price:x.p.price, promo:x.p.promo, seen:x.p.seen, image:'', full:x.score >= 1}));
+}
+function feedProduct(id){ return feed.byId ? feed.byId.get(String(id)) : null; }
+// Connects the Harris Teeter store to the daily list the first time the list loads.
+function autoConnectFeed(){
+  if (!feed.data || !feed.data.rows.length) return false;
+  const s = S.stores.find(x => /harris\s*teeter/i.test(x.name) && !x.source);
+  if (!s || S.settings.feedAutoDone) return false;
+  s.source = 'feed'; S.settings.feedAutoDone = true; save();
+  return s;
+}
+// Applies the latest daily prices to every matched item. Returns how many changed.
+function syncFeedPrices(){
+  if (!feed.data) return 0;
+  let changed = 0;
+  for (const {item, store} of linkedPairs()) {
+    if (store.source !== 'feed') continue;
+    const p = feedProduct(item.links[store.id].id);
+    if (p && recordLive(item, store, p, p.seen)) changed++;
+  }
+  S.settings.feedUpdated = feed.data.updated || ''; save();
+  return changed;
+}
 function agoText(ms){
   const m = Math.round((Date.now() - ms) / 60000);
   if (m < 1) return 'just now'; if (m < 60) return m + ' min ago';
@@ -1047,26 +1140,35 @@ async function api(path){
   } finally { clearTimeout(tm); }
 }
 function searchTerm(it){ return [it.brand && !/^store brand$/i.test(it.brand) ? it.brand : '', it.name].filter(Boolean).join(' ').trim(); }
-function liveSearch(store, term){
+async function liveSearch(store, term, brand){
+  if (store.source === 'feed') { await getFeed(); return {items: feedSearch(term, brand)}; }
   return store.source === 'kroger'
     ? api(`/kroger/products?term=${encodeURIComponent(term)}&locationId=${encodeURIComponent(store.locationId)}&limit=12`)
     : api(`/walmart/search?q=${encodeURIComponent(term)}`);
 }
-function liveGet(store, pid){
+async function liveGet(store, pid){
+  if (store.source === 'feed') {
+    await getFeed();
+    const p = feedProduct(pid);
+    if (!p) throw new Error('That product isn’t in today’s Harris Teeter price list. Tap Change to pick another.');
+    return {item:p};
+  }
   return store.source === 'kroger'
     ? api(`/kroger/product?id=${encodeURIComponent(pid)}&locationId=${encodeURIComponent(store.locationId)}`)
     : api(`/walmart/item?id=${encodeURIComponent(pid)}`);
 }
 // Saves a live price. Returns true if the price changed.
-function recordLive(item, store, prod){
+function recordLive(item, store, prod, date){
   if (!prod || (prod.price == null && prod.promo == null)) return false;
   const price = prod.price != null ? prod.price : prod.promo;
   const card = prod.promo != null && prod.price != null && prod.promo < prod.price ? prod.promo : null;
+  const when = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : today();
   const prior = idx().latest[item.id + '|' + store.id];
   if (prior && prior.src === 'live' && prior.price === price && (prior.card == null ? null : prior.card) === card) {
-    prior.date = today(); memo = null; return false;
+    if (when > prior.date) prior.date = when;
+    memo = null; return false;
   }
-  S.prices.push({id:uid(), itemId:item.id, storeId:store.id, price, card, date:today(), src:'live', label:prod.size || ''});
+  S.prices.push({id:uid(), itemId:item.id, storeId:store.id, price, card, date:when, src:'live', label:prod.size || ''});
   memo = null;
   return true;
 }
@@ -1080,12 +1182,15 @@ async function refreshLive(pairs, quiet){
   if (refreshing || !pairs.length) { if (!quiet && !pairs.length) toast('No items are matched to a live store yet. Open an item and tap Find match.'); return; }
   refreshing = true;
   let changed = 0, failed = 0, lastErr = '';
+  if (pairs.some(x => x.store.source === 'feed')) {
+    try { await getFeed(true); } catch (e) { refreshing = false; if (!quiet) toast(e.message); return; }
+  }
   const queue = pairs.slice();
   if (!quiet) toast(`Updating ${pairs.length} live price${pairs.length === 1 ? '' : 's'}…`);
   const run = async () => {
     while (queue.length) {
       const {item, store} = queue.shift();
-      try { const r = await liveGet(store, item.links[store.id].id); if (recordLive(item, store, r.item)) changed++; }
+      try { const r = await liveGet(store, item.links[store.id].id); if (recordLive(item, store, r.item, r.item && r.item.seen)) changed++; }
       catch (e) { failed++; lastErr = e.message; }
     }
   };
@@ -1102,14 +1207,18 @@ function storeConnectSheet(id){
   const s = S.stores.find(x => x.id === id); if (!s) return;
   const h = `<div class="sheet-head"><h2 id="sheetTitle">Live prices for ${esc(s.name)}</h2>${CLOSE_BTN}</div>
     ${s.source ? `<div class="statline"><p><span class="live-dot"></span>${esc(storeSourceText(s))}</p></div>` : ''}
-    <h2 class="sec" style="margin-top:6px">Harris Teeter and other Kroger stores</h2>
-    <div class="prose"><p>Kroger's API covers the chains Kroger owns, including Harris Teeter. Pick your store so prices match its shelf and its VIC deals.</p></div>
+    <h2 class="sec" style="margin-top:6px">Daily Harris Teeter price list</h2>
+    <div class="prose"><p>Updated every morning by your GitHub repo. No extra setup in the app.</p></div>
+    <div class="row-actions" style="margin-top:0"><button class="btn${s.source === 'feed' ? '' : ' btn-primary'}" data-action="link-feed" data-id="${s.id}">${s.source === 'feed' ? 'Using the daily list' : 'Use the daily list'}</button></div>
+    <p id="fStatus" class="hint" role="status"></p>
+    ${liveOn() ? `<h2 class="sec">Kroger-family store (price server)</h2>
+    <div class="prose"><p>Instant prices through your own price server. Pick your store.</p></div>
     <div class="inline"><input type="text" id="kZip" inputmode="numeric" maxlength="5" placeholder="ZIP code" value="${esc(S.settings.zip || '')}" aria-label="ZIP code"><button class="btn" data-action="kroger-find" data-id="${s.id}">Find stores</button></div>
     <p id="kStatus" class="hint" role="status"></p><div id="kResults"></div>
-    <h2 class="sec">Walmart</h2>
+    <h2 class="sec">Walmart (price server)</h2>
     <div class="prose"><p>Uses Walmart's online price, which usually matches the store. Needs Walmart keys on your price server.</p></div>
     <div class="row-actions" style="margin-top:0"><button class="btn" data-action="link-walmart" data-id="${s.id}">Use Walmart prices</button></div>
-    <p id="wStatus" class="hint" role="status"></p>
+    <p id="wStatus" class="hint" role="status"></p>` : ''}
     ${s.source ? `<div class="row-actions" style="margin-top:18px"><button class="btn btn-danger" data-action="unlink-store" data-id="${s.id}">Stop live prices for this store</button></div>` : ''}`;
   openSheet(h);
 }
@@ -1118,13 +1227,18 @@ let liveResults = [], liveCtx = null;
 async function liveFind(itemId, storeId){
   const it = getItem(itemId), store = S.stores.find(s => s.id === storeId);
   if (!it || !store) return;
-  const term = searchTerm(it);
+  const term = store.source === 'feed' ? it.name : searchTerm(it);
   const st = $('#liveItemStatus'), box = $('#liveItemResults');
   st.textContent = `Searching ${store.name} for “${term}”…`; box.innerHTML = '';
   try {
-    const j = await liveSearch(store, term);
+    const j = await liveSearch(store, term, it.brand);
     liveResults = (j.items || []).filter(x => x.name); liveCtx = {itemId, storeId};
-    if (!liveResults.length) { st.textContent = `Nothing at ${store.name} matched “${term}”. Try renaming the item to what the store calls it.`; return; }
+    if (!liveResults.length) {
+      if (store.source === 'feed') {
+        st.innerHTML = `“${esc(term)}” isn’t in the daily Harris Teeter price list. <a href="${GH}/edit/main/prices/terms.txt" target="_blank" rel="noopener" style="color:var(--accent);font-weight:600">Add a search word for it on GitHub</a> and it’ll be in the next update (a few minutes after you save).`;
+      } else st.textContent = `Nothing at ${store.name} matched “${term}”. Try renaming the item to what the store calls it.`;
+      return;
+    }
     st.textContent = `Pick the product that matches at ${store.name}:`;
     box.innerHTML = '<ul class="off-list">' + liveResults.map((x, i) => `<li><button type="button" data-action="live-pick" data-idx="${i}">${x.image ? `<img src="${esc(x.image)}" alt="" loading="lazy">` : ''}<span><b style="font-weight:600">${esc(x.name)}</b><small>${esc([x.size, x.promo != null ? `${money(x.promo)} with card, ${money(x.price)} regular` : (x.price != null ? money(x.price) : 'No price at this store')].filter(Boolean).join(' · '))}</small></span></button></li>`).join('') + '</ul>';
   } catch (e) { st.textContent = e.message; }
@@ -1152,7 +1266,11 @@ function armed(btn, label){
 function exportJSON(){ return JSON.stringify(S); }
 
 const actions = {
-  'settings': () => { ui.tab = 'settings'; render(); window.scrollTo(0, 0); },
+  'settings': () => {
+    ui.tab = 'settings'; render(); window.scrollTo(0, 0);
+    const paint = () => { const b = $('#feedBox'); if (b) b.innerHTML = feedStatusHTML(); };
+    getFeed().then(paint, paint);
+  },
   'back': () => { ui.tab = 'list'; render(); window.scrollTo(0, 0); },
   'close-sheet': closeSheet,
   'toast-act': () => { $('#toast').classList.remove('show'); if (toastFn) toastFn(); },
@@ -1279,7 +1397,7 @@ const actions = {
     it.links = it.links || {};
     it.links[store.id] = {id:x.id, name:x.name, size:x.size || ''};
     if (!it.barcode && x.upc && store.source === 'walmart') it.barcode = x.upc;
-    const priced = recordLive(it, store, x) || x.price != null || x.promo != null;
+    const priced = recordLive(it, store, x, x.seen) || x.price != null || x.promo != null;
     save(); itemSheet(it.id); render();
     toast(priced ? `Matched at ${store.name}` : `Matched, but ${store.name} shows no price for it right now.`);
   },
@@ -1289,7 +1407,44 @@ const actions = {
     await refreshLive([{item:it, store}], false);
     if (!$('#sheetWrap').hidden) itemSheet(it.id);
   },
-  'live-refresh': () => refreshLive(linkedPairs(), false)
+  'live-refresh': () => refreshLive(linkedPairs(), false),
+  'link-feed': async b => {
+    const s = S.stores.find(x => x.id === b.dataset.id), st = $('#fStatus'); if (!s) return;
+    st.textContent = 'Loading the daily price list…';
+    try {
+      const d = await getFeed(true);
+      if (!d.rows.length) { st.textContent = d.error || 'The daily price list is empty so far. It fills in after the GitHub Action runs with your Kroger keys.'; return; }
+      s.source = 'feed'; delete s.locationId; delete s.locationName; save();
+      closeSheet(); render(); toast(`${s.name} now uses the daily price list. Tap Match my items in Settings.`);
+    } catch (e) { st.textContent = e.message; }
+  },
+  'feed-check': async () => {
+    const box = $('#feedBox');
+    try {
+      await getFeed(true);
+      const n = syncFeedPrices(); render();
+      toast(n ? `${n} price${n === 1 ? '' : 's'} changed.` : 'Prices are up to date.');
+    } catch (e) { if (box) box.innerHTML = feedStatusHTML(); toast(e.message); }
+  },
+  'feed-automatch': async () => {
+    try { await getFeed(); } catch (e) { toast(e.message); return; }
+    const store = S.stores.find(s => s.source === 'feed');
+    if (!store) { toast('Connect Harris Teeter to the daily list first (Stores → Connect live prices).'); return; }
+    if (!feed.data.rows.length) { toast('The daily price list is empty so far.'); return; }
+    let matched = 0, tried = 0;
+    for (const it of S.items) {
+      if (it.links && it.links[store.id]) continue;
+      tried++;
+      const best = feedSearch(it.name, it.brand)[0];
+      if (!best || !best.full) continue;
+      it.links = it.links || {};
+      it.links[store.id] = {id:best.id, name:best.name, size:best.size || '', auto:true};
+      recordLive(it, store, best, best.seen);
+      matched++;
+    }
+    save(); render();
+    toast(tried ? `Matched ${matched} of ${tried} items. Open any item to check its match or tap Change.` : 'Every item is already matched.');
+  }
 };
 
 document.addEventListener('click', e => {
@@ -1358,9 +1513,17 @@ document.addEventListener('change', e => {
 
 render();
 
-// Pull fresh live prices when the app opens, at most every 6 hours.
-setTimeout(() => {
-  if (liveOn() && Date.now() - (S.settings.lastRefresh || 0) > 6 * 3600e3) refreshLive(linkedPairs(), true);
+// On open: load the daily Harris Teeter list and apply it to matched items (no API
+// cost, it's one file), then refresh price-server items at most every 6 hours.
+setTimeout(async () => {
+  try {
+    const d = await getFeed();
+    const s = autoConnectFeed();
+    if (s) { render(); toast(`${s.name} is now on the daily price list. Tap Match my items in Settings.`); }
+    if (d && d.updated !== S.settings.feedUpdated) { const n = syncFeedPrices(); if (n) render(); }
+    const b = $('#feedBox'); if (b) b.innerHTML = feedStatusHTML();
+  } catch (e) {}
+  if (liveOn() && Date.now() - (S.settings.lastRefresh || 0) > 6 * 3600e3) refreshLive(linkedPairs().filter(x => x.store.source !== 'feed'), true);
 }, 800);
 
 /* Offline support when hosted (GitHub Pages). Skipped where service workers aren't allowed. */
