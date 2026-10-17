@@ -1,0 +1,1 @@
+{"version":1,"updated":"2026-10-17T10:44:56Z","fields":["id","name","brand","size","price","promo","seen"],"store":null,"nearby":[],"products":[],"error":"Kroger keys aren't added yet. Add KROGER_CLIENT_ID and KROGER_CLIENT_SECRET under the repo's Settings → Secrets and variables → Actions.","stats":{}}
